@@ -103,7 +103,7 @@ async def get_department_tree(
     depth: int,
     include_employees: bool,
     session: AsyncSession,
-):
+) -> schemas.DepartmentTreeNode:
     children_list, employees = [], []
     await session.refresh(root, ["children"])
     

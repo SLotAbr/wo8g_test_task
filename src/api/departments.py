@@ -24,6 +24,7 @@ async def register_department(
     register_department: schemas.RegisterDepartment,
     session: AsyncSession = Depends(get_async_session),
 ) -> schemas.ReadDepartment:
+    """Регистрирует новое подразделение."""
     registration_dict = register_department.model_dump(exclude_unset=True)
     registration_dict["name"] = registration_dict["name"].strip()
     
@@ -46,6 +47,7 @@ async def register_employee(
     department: Department = Depends(get_department_or_404),
     session: AsyncSession = Depends(get_async_session),
 ) -> schemas.ReadEmployee:
+    """Создаёт сотрудника в выбранном подразделении."""
     registration_dict = register_employee.model_dump(exclude_unset=True)
     await check_employee_name(registration_dict["full_name"], session)
     employee = Employee(**registration_dict)
@@ -62,6 +64,7 @@ async def get_department(
     department: Department = Depends(get_department_or_404),
     session: AsyncSession = Depends(get_async_session),
 ) -> schemas.DepartmentTreeNode:
+    """Предоставляет информацию о поддереве с выбранным подразделением во главе."""
     return await get_department_tree(
         department, 
         search_query.depth, 
@@ -76,6 +79,7 @@ async def patch_department(
     department: Department = Depends(get_department_or_404),
     session: AsyncSession = Depends(get_async_session),
 ) -> schemas.ReadDepartment:
+    """Обновляет имя департамента или прикрепляет его к другому родителю."""
     patch_dict = patch_department.model_dump(exclude_unset=True)
 
     # name=1, parent_id=0
@@ -111,7 +115,13 @@ async def delete_department(
     delete_query: Annotated[schemas.DeleteDepartment, Query()],
     department: Department = Depends(get_department_or_404),
     session: AsyncSession = Depends(get_async_session),
-):
+) -> None:
+    """Предоставляет интерфейс для удаления департаментов в одном из 2 режимов. 
+    "cascade" удаляет все элементы поддерева с выбранным подразделением во главе, 
+    включая само головное подразделение и всех прикреплённых сотрудников. 
+    "reassign" удаляет только выбранное подразделение, переводя всех его 
+    сотрудников в департамент с номером "reassign_to_department_id​".
+    """
     delete_dict = delete_query.model_dump(exclude_unset=True)
 
     if delete_dict["mode"]==schemas.DeleteMode.REASSIGN:
