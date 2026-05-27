@@ -99,10 +99,13 @@ async def patch_department(
         new_parent = await get_department_or_404(parent_id, session)
         await check_loops(parent_id, department, session)
         await check_recursion_level(new_parent, session)
+        
+        check_names_within_department(
+            new_parent, 
+            patch_dict["name"] if patch_dict.get("name") else department.name
+        )
         department.parent = new_parent
-        # name=1
         if patch_dict.get("name"):
-            check_names_within_department(new_parent, patch_dict["name"])
             department.name = patch_dict["name"]
 
     session.add(department)

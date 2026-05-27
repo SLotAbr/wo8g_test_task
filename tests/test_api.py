@@ -132,7 +132,86 @@ async def test_get_department(client: AsyncClient, db_session: AsyncSession) -> 
 
 
 @pytest.mark.asyncio
-async def test_patch_department(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_patch_department_name(client: AsyncClient, db_session: AsyncSession) -> None:
+    """
+    dep1 | dep2
+         | dep3
+    """
+    fake_department = {"name":"department_1"}
+    response = await client.post("/departments/", json=fake_department)
+    assert response.status_code == 201
+    assert response.json()["id"] == 1
+    assert response.json()["parent_id"] == None
+    
+    fake_department = {"name":"department_2", "parent_id":1}
+    response = await client.post("/departments/", json=fake_department)
+    assert response.status_code == 201
+    assert response.json()["id"] == 2
+    assert response.json()["parent_id"] == 1
+    
+    fake_department = {"name":"department_3", "parent_id":1}
+    response = await client.post("/departments/", json=fake_department)
+    assert response.status_code == 201
+    assert response.json()["id"] == 3
+    assert response.json()["parent_id"] == 1
+    
+    patch_data = {"name":"new_name"}
+    response = await client.patch("/departments/1", json=patch_data)
+    assert response.status_code == 200
+    assert response.json()["id"] == 1
+    assert response.json()["parent_id"] == None
+    assert response.json()["name"] == "new_name"
+    
+    patch_data = {"name":"department_2"}
+    response = await client.patch("/departments/3", json=patch_data)
+    assert response.status_code == 422
+    assert response.json()["detail"] is not None
+
+
+@pytest.mark.asyncio
+async def test_patch_department_parent(client: AsyncClient, db_session: AsyncSession) -> None:
+    fake_department = {"name":"department_1"}
+    response = await client.post("/departments/", json=fake_department)
+    assert response.status_code == 201
+    assert response.json()["id"] == 1
+    assert response.json()["parent_id"] == None
+    
+    patch_data = {"parent_id":1}
+    response = await client.patch("/departments/1", json=patch_data)
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Department cannot be its own parent"
+    #
+    fake_department = {"name":"department_2", "parent_id":1}
+    response = await client.post("/departments/", json=fake_department)
+    assert response.status_code == 201
+    assert response.json()["id"] == 2
+    assert response.json()["parent_id"] == 1
+    
+    fake_department = {"name":"department_3", "parent_id":1}
+    response = await client.post("/departments/", json=fake_department)
+    assert response.status_code == 201
+    assert response.json()["id"] == 3
+    assert response.json()["parent_id"] == 1
+    
+    patch_data = {"parent_id":3}
+    response = await client.patch("/departments/1", json=patch_data)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Loops are forbidden for this data structure"
+    #
+    fake_department = {"name":"department_2", "parent_id":3}
+    response = await client.post("/departments/", json=fake_department)
+    assert response.status_code == 201
+    assert response.json()["id"] == 4
+    assert response.json()["parent_id"] == 3
+    
+    patch_data = {"parent_id":1}
+    response = await client.patch("/departments/4", json=patch_data)
+    assert response.status_code == 422
+    assert response.json()["detail"] == "The name must be unique within one parent department"
+
+
+@pytest.mark.asyncio
+async def test_patch_department_name_and_parent(client: AsyncClient, db_session: AsyncSession) -> None:
     fake_department = {"name":"department_1"}
     response = await client.post("/departments/", json=fake_department)
     assert response.status_code == 201
@@ -151,8 +230,10 @@ async def test_patch_department(client: AsyncClient, db_session: AsyncSession) -
     assert response.json()["id"] == 3
     assert response.json()["parent_id"] == 2
     
-    # PATCH tests
-    
+    patch_data = {"parent_id":1, "name":"department_2"}
+    response = await client.patch("/departments/3", json=patch_data)
+    assert response.status_code == 422
+    assert response.json()["detail"] == "The name must be unique within one parent department"
 
 
 @pytest.mark.asyncio

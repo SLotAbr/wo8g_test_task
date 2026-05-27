@@ -90,12 +90,13 @@ async def check_loops(
     department: Department, 
     session: AsyncSession
 ) -> None:
-    id_list = await get_department_subtree_ids(department, session)
-    if parent_id in id_list:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Loops are forbidden for this data structure"
-        )
+    if department.children:
+        id_list = await get_department_subtree_ids(department, session)
+        if parent_id in id_list:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Loops are forbidden for this data structure"
+            )
 
 
 async def get_department_tree(

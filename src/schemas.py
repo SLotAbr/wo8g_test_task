@@ -1,7 +1,7 @@
 from typing import Optional
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 class RegisterDepartment(BaseModel):
@@ -38,8 +38,14 @@ class DepartmentTreeNode(BaseModel):
 
 
 class PatchDepartment(BaseModel):
-    name: Optional[str] = Field(min_length=1, max_length=200)
+    name: Optional[str] = None
     parent_id: Optional[int] = None
+    
+    @validator("name")
+    def name_validation(cls, value):
+        if value and not (1 <= len(value) <= 200):
+            raise ValueError("Name field length must be within 1-200 range")
+        return value
 
 
 class DeleteMode(str, Enum):
