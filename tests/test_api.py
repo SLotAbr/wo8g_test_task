@@ -5,46 +5,44 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from src.models import Employee, Department
+from tests.utils import POST_department
 
 
 @pytest.mark.asyncio
-async def test_department_registration(client: AsyncClient, db_session: AsyncSession) -> None:
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
-    
-    fake_department = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 2
-    assert response.json()["parent_id"] == 1
-    name_repetition = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=name_repetition)
-    assert response.status_code == 422
-    assert response.json()["detail"] is not None
+async def test_department_registration(client: AsyncClient) -> None:
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"id":2, "parent_id":1}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"detail":"The name must be unique within one parent department"},
+        response_status=422
+    )
     
     # One parent + 5 recursion levels
     for level in range(3,7): # [3,4,5,6]
-        fake_dep = {"name":"dep_"+str(level), "parent_id":level-1}
-        response = await client.post("/departments/", json=fake_dep)
-        assert response.status_code == 201
-        assert response.json()["id"] == level
-        assert response.json()["parent_id"] == level-1
-    fake_dep = {"name":"dep_7", "parent_id":6}
-    response = await client.post("/departments/", json=fake_dep)
-    assert response.status_code == 422
-    assert response.json()["detail"] is not None
+        await POST_department(client, 
+            post_dict={"name":"dep_"+str(level), "parent_id":level-1},
+            check_dict={"id":level, "parent_id":level-1}
+        )
+    await POST_department(client, 
+        post_dict={"name":"dep_7", "parent_id":6},
+        check_dict={"detail":"Maximum recursion level is reached"},
+        response_status=422
+    )
 
 
 @pytest.mark.asyncio
-async def test_employee_registration(client: AsyncClient, db_session: AsyncSession) -> None:
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
+async def test_employee_registration(client: AsyncClient) -> None:
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
     
     fake_employee = {"full_name":"name", "position":"position"}
     response = await client.post("/departments/1/employees", json=fake_employee)
@@ -61,40 +59,31 @@ async def test_employee_registration(client: AsyncClient, db_session: AsyncSessi
 
 
 @pytest.mark.asyncio
-async def test_get_department(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_get_department(client: AsyncClient) -> None:
     """
     dep1 | dep2 | dep3
                 | dep4 | dep5
     """
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
-    
-    fake_department = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 2
-    assert response.json()["parent_id"] == 1
-    
-    fake_department = {"name":"department_3", "parent_id":2}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 3
-    assert response.json()["parent_id"] == 2
-    
-    fake_department = {"name":"department_4", "parent_id":2}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 4
-    assert response.json()["parent_id"] == 2
-    
-    fake_department = {"name":"department_5", "parent_id":4}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 5
-    assert response.json()["parent_id"] == 4
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"id":2, "parent_id":1}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_3", "parent_id":2},
+        check_dict={"id":3, "parent_id":2}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_4", "parent_id":2},
+        check_dict={"id":4, "parent_id":2}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_5", "parent_id":4},
+        check_dict={"id":5, "parent_id":4}
+    )
     
     fake_employee = {"full_name":"name", "position":"position"}
     response = await client.post("/departments/4/employees", json=fake_employee)
@@ -132,28 +121,23 @@ async def test_get_department(client: AsyncClient, db_session: AsyncSession) -> 
 
 
 @pytest.mark.asyncio
-async def test_patch_department_name(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_patch_department_name(client: AsyncClient) -> None:
     """
     dep1 | dep2
          | dep3
     """
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
-    
-    fake_department = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 2
-    assert response.json()["parent_id"] == 1
-    
-    fake_department = {"name":"department_3", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 3
-    assert response.json()["parent_id"] == 1
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"id":2, "parent_id":1}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_3", "parent_id":1},
+        check_dict={"id":3, "parent_id":1}
+    )
     
     patch_data = {"name":"new_name"}
     response = await client.patch("/departments/1", json=patch_data)
@@ -169,41 +153,33 @@ async def test_patch_department_name(client: AsyncClient, db_session: AsyncSessi
 
 
 @pytest.mark.asyncio
-async def test_patch_department_parent(client: AsyncClient, db_session: AsyncSession) -> None:
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
-    
+async def test_patch_department_parent(client: AsyncClient) -> None:
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
     patch_data = {"parent_id":1}
     response = await client.patch("/departments/1", json=patch_data)
     assert response.status_code == 422
     assert response.json()["detail"] == "Department cannot be its own parent"
     #
-    fake_department = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 2
-    assert response.json()["parent_id"] == 1
-    
-    fake_department = {"name":"department_3", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 3
-    assert response.json()["parent_id"] == 1
-    
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"id":2, "parent_id":1}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_3", "parent_id":1},
+        check_dict={"id":3, "parent_id":1}
+    )
     patch_data = {"parent_id":3}
     response = await client.patch("/departments/1", json=patch_data)
     assert response.status_code == 409
     assert response.json()["detail"] == "Loops are forbidden for this data structure"
     #
-    fake_department = {"name":"department_2", "parent_id":3}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 4
-    assert response.json()["parent_id"] == 3
-    
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":3},
+        check_dict={"id":4, "parent_id":3}
+    )
     patch_data = {"parent_id":1}
     response = await client.patch("/departments/4", json=patch_data)
     assert response.status_code == 422
@@ -211,25 +187,19 @@ async def test_patch_department_parent(client: AsyncClient, db_session: AsyncSes
 
 
 @pytest.mark.asyncio
-async def test_patch_department_name_and_parent(client: AsyncClient, db_session: AsyncSession) -> None:
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
-    
-    fake_department = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 2
-    assert response.json()["parent_id"] == 1
-    
-    fake_department = {"name":"department_3", "parent_id":2}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 3
-    assert response.json()["parent_id"] == 2
-    
+async def test_patch_department_name_and_parent(client: AsyncClient) -> None:
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"id":2, "parent_id":1}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_3", "parent_id":2},
+        check_dict={"id":3, "parent_id":2}
+    )
     patch_data = {"parent_id":1, "name":"department_2"}
     response = await client.patch("/departments/3", json=patch_data)
     assert response.status_code == 422
@@ -238,30 +208,22 @@ async def test_patch_department_name_and_parent(client: AsyncClient, db_session:
 
 @pytest.mark.asyncio
 async def test_cascade_delete_department(client: AsyncClient, db_session: AsyncSession) -> None:
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
-    
-    fake_department = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 2
-    assert response.json()["parent_id"] == 1
-    
-    fake_department = {"name":"department_3", "parent_id":2}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 3
-    assert response.json()["parent_id"] == 2
-    
-    fake_department = {"name":"department_4", "parent_id":3}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 4
-    assert response.json()["parent_id"] == 3
-    
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"id":2, "parent_id":1}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_3", "parent_id":2},
+        check_dict={"id":3, "parent_id":2}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_4", "parent_id":3},
+        check_dict={"id":4, "parent_id":3}
+    )
     fake_employee = {"full_name":"name", "position":"position"}
     response = await client.post("/departments/4/employees", json=fake_employee)
     assert response.status_code == 201
@@ -302,24 +264,18 @@ async def test_cascade_delete_department(client: AsyncClient, db_session: AsyncS
 
 @pytest.mark.asyncio
 async def test_reassign_delete_department(client: AsyncClient, db_session: AsyncSession) -> None:
-    fake_department = {"name":"department_1"}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 1
-    assert response.json()["parent_id"] == None
-    
-    fake_department = {"name":"department_2", "parent_id":1}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 2
-    assert response.json()["parent_id"] == 1
-    
-    fake_department = {"name":"department_3", "parent_id":2}
-    response = await client.post("/departments/", json=fake_department)
-    assert response.status_code == 201
-    assert response.json()["id"] == 3
-    assert response.json()["parent_id"] == 2
-    
+    await POST_department(client, 
+        post_dict={"name":"department_1"},
+        check_dict={"id":1, "parent_id":None}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_2", "parent_id":1},
+        check_dict={"id":2, "parent_id":1}
+    )
+    await POST_department(client, 
+        post_dict={"name":"department_3", "parent_id":2},
+        check_dict={"id":3, "parent_id":2}
+    )
     fake_employee = {"full_name":"name_1", "position":"position"}
     response = await client.post("/departments/2/employees", json=fake_employee)
     assert response.status_code == 201
